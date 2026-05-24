@@ -625,42 +625,108 @@ cachées, analysé en Section~\ref{sec:analyse_erreur}.
 % - Dans le Cas 1 : simplification avec inf_{a in [0,2pi]} || tau_a theta_hat - vartheta ||^2
 
 
+
+
 % ════════════════════════════════════════════════════════════════════════════
 \newpage
+
+
 \section{Résolution du problème d'optimisation}
 \label{sec:optimisation}
 
-\subsection{Approche directe : descente de gradient}
-\label{subsec:gradient}
-% - Calcul du gradient de la log-vraisemblance négative
-% - Algorithme de gradient à pas fixe / pas décroissant
-% - Analyse de la convergence (conditions suffisantes)
-% - Implémentation et résultats numériques (Cas 1)
+Nous cherchons à maximiser $\ell_n(\theta)$. Deux approches sont présentées.
 
-\subsection{Algorithme Espérance-Maximisation}
-\label{subsec:em}
+\subsection{Descente de gradient directe}
 
-\subsubsection{Principe général}
-\label{subsubsec:em_general}
-% - Données complètes vs données incomplètes
-% - Décomposition de la log-vraisemblance : identité de Fisher
-% - Étape E : calcul de Q(theta | theta^(k)) = E_{Z|Y,theta^(k)}[log p(Y,Z;theta)]
-% - Étape M : theta^(k+1) = argmax_theta Q(theta | theta^(k))
-% - Propriété fondamentale : croissance monotone de la vraisemblance
+\subsubsection{Gradient de la log-vraisemblance marginale}
 
-\subsubsection{Application au modèle (M)}
-\label{subsubsec:em_modele}
-% - Calcul explicite de Q(theta | theta^(k)) pour le modèle (M)
-% - Montrer que l'étape M est un problème quadratique convexe
-% - Forme explicite de la solution (système linéaire)
-% - Implémentation et résultats numériques (Cas 1)
+Sous des hypothèses de régularité, le gradient s'écrit
+\[
+\nabla\ell_n(\theta) = \frac{1}{\sigma^2}\sum_{i=1}^n \int_{\Zcal} A_z^\top(Y_i - A_z\theta)\; \pi_\theta(z|Y_i)\,d\mu(z),
+\]
+où $\pi_\theta(z|Y_i)$ est la loi a posteriori de $Z_i$ sachant $Y_i$ :
+\[
+\pi_\theta(z|Y_i) = \frac{\pi(z)\exp\!\left(-\frac{\|Y_i-A_z\theta\|^2}{2\sigma^2}\right)}{\int_{\Zcal}\pi(z')\exp\!\left(-\frac{\|Y_i-A_{z'}\theta\|^2}{2\sigma^2}\right)d\mu(z')}.
+\]
+Le gradient est une moyenne des résidus $Y_i-A_z\theta$ pondérée par les probabilités a posteriori.
+
+\subsubsection{Itération de gradient}
+
+À partir d'une initialisation $\theta^{(0)}$, on met à jour par
+\[
+\theta^{(k+1)} = \theta^{(k)} + \eta_k \nabla\ell_n(\theta^{(k)}).
+\]
+Lorsque l'espace latent est discrétisé en $M$ valeurs $z_1,\dots,z_M$, l'itération devient
+\[
+\theta^{(k+1)} = \theta^{(k)} + \frac{\eta_k}{\sigma^2}\sum_{i=1}^n\sum_{m=1}^M w_{i,m}^{(k)} A_{z_m}^\top (Y_i - A_{z_m}\theta^{(k)}),
+\]
+avec
+\[
+w_{i,m}^{(k)} = \frac{\pi(z_m)\exp\!\bigl(-\|Y_i-A_{z_m}\theta^{(k)}\|^2/(2\sigma^2)\bigr)}{\sum_{\ell=1}^M \pi(z_\ell)\exp\!\bigl(-\|Y_i-A_{z_\ell}\theta^{(k)}\|^2/(2\sigma^2)\bigr)}.
+\]
+
+\paragraph{Limites.} La descente de gradient est simple à implémenter mais sensible au choix du pas $\eta_k$ et peut converger lentement ou stagner dans des maxima locaux.
+
+\subsection{Algorithme Espérance-Maximisation (EM)}
+
+L'EM exploite la structure des données complètes $(Y_i,Z_i)$. La log-vraisemblance complète est
+\[
+\log p(Y,Z;\theta) = -\frac{np}{2}\log(2\pi\sigma^2) - \frac{1}{2\sigma^2}\sum_{i=1}^n\|Y_i-A_{Z_i}\theta\|^2 + \sum_{i=1}^n\log\pi(Z_i).
+\]
+Elle est quadratique en $\theta$ si les $Z_i$ sont connus.
+
+\subsubsection{Fonction auxiliaire $Q$}
+
+À l'itération $k$, on définit
+\[
+Q(\theta\mid\theta^{(k)}) = \mathbb{E}_{\theta^{(k)}}\bigl[\log p(Y,Z;\theta)\mid Y\bigr].
+\]
+
+\subsubsection{Étape E (Espérance)}
+
+On calcule les poids a posteriori pour chaque observation et chaque valeur possible de $z$ :
+\[
+\tau_{i,z}^{(k)} = \pi_{\theta^{(k)}}(z|Y_i).
+\]
+En pratique, avec un espace latent discret (ou discrétisé), la formule de Bayes donne
+\[
+\tau_{i,z}^{(k)} = \frac{\pi(z)\exp\!\bigl(-\|Y_i-A_z\theta^{(k)}\|^2/(2\sigma^2)\bigr)}{\sum_{z'\in\Zcal}\pi(z')\exp\!\bigl(-\|Y_i-A_{z'}\theta^{(k)}\|^2/(2\sigma^2)\bigr)}.
+\]
+
+\subsubsection{Étape M (Maximisation)}
+
+$Q(\theta\mid\theta^{(k)})$ est égale, à une constante additive près, à
+\[
+-\frac{1}{2\sigma^2}\sum_{i=1}^n\sum_{z\in\Zcal}\tau_{i,z}^{(k)}\|Y_i-A_z\theta\|^2.
+\]
+Maximiser $Q$ revient à résoudre un problème de moindres carrés pondérés. La solution explicite est
+\[
+\theta^{(k+1)} = \left(\sum_{i=1}^n\sum_{z\in\Zcal}\tau_{i,z}^{(k)} A_z^\top A_z\right)^{-1}
+\left(\sum_{i=1}^n\sum_{z\in\Zcal}\tau_{i,z}^{(k)} A_z^\top Y_i\right).
+\]
+
+\subsubsection{Propriétés}
+
+\begin{proposition}[Dempster et al., 1977]
+L'algorithme EM augmente la log-vraisemblance marginale à chaque itération : $\ell_n(\theta^{(k+1)})\ge\ell_n(\theta^{(k)})$.
+\end{proposition}
+
+\begin{theorem}[Wu, 1983]
+Toute valeur d'adhérence de la suite $(\theta^{(k)})$ est un point critique de $\ell_n$ (i.e., $\nabla\ell_n(\theta)=0$).
+\end{theorem}
 
 \subsection{Comparaison des deux approches}
-\label{subsec:comparaison}
-% - Complexité par itération : gradient vs EM
-% - Garanties de convergence : globale vs locale
-% - Sensibilité à l'initialisation
-% - Résultats numériques croisés : temps de calcul, valeur finale
+
+\begin{itemize}
+    \item \textbf{Descente de gradient} : directe, facile à coder, mais réglage délicat du pas, convergence parfois lente, risque de rester bloqué.
+    \item \textbf{EM} : plus naturel pour les modèles à variables cachées, monotonie garantie, chaque itération résout un système linéaire (coût comparable à celui du gradient). L'EM peut être lent près d'un optimum mais est plus robuste.
+\end{itemize}
+
+Dans nos expériences numériques sur le Cas 1, l'EM a donné de meilleurs résultats en termes de stabilité et de précision finale.
+% 
+
+
+
 
 
 % ════════════════════════════════════════════════════════════════════════════
@@ -681,11 +747,50 @@ cachées, analysé en Section~\ref{sec:analyse_erreur}.
 % - Courbes epsilon_n en fonction de sigma pour différents n
 % - Impact de d et p : discussion
 
+
+
 % ════════════════════════════════════════════════════════════════════════════
+
+
+
+
+
 \newpage
 \section{Régularisation pour les problèmes inverses mal posés}
-\label{subsec:régularisation}
+\label{sec:regularisation}
+
+Dans l'étape M de l'EM, la matrice $\sum_{i,z}\tau_{i,z}^{(k)} A_z^\top A_z$ peut être mal conditionnée, surtout lorsque $d$ est grand ou que le nombre d'observations $n$ est faible. Cela rend l'estimation très sensible au bruit. Pour stabiliser l'inversion, on introduit un terme de régularisation.
+
+\subsection{Vraisemblance pénalisée}
+
+On remplace la log-vraisemblance par une version pénalisée :
+\[
+\ell_n^{\text{reg}}(\theta) = \ell_n(\theta) - \lambda R(\theta),
+\]
+où $\lambda>0$ est un paramètre de régularisation et $R(\theta)$ un régulariseur. Dans le cadre EM, on modifie l'étape M en maximisant
+\[
+Q^{\text{reg}}(\theta\mid\theta^{(k)}) = Q(\theta\mid\theta^{(k)}) - \lambda R(\theta).
+\]
+
+\subsection{Régularisation de Tikhonov ($R(\theta)=\frac12\|\theta\|^2$)}
+
+Avec cette pénalité quadratique, l'étape M devient
+\[
+\min_{\theta\in E}\; \frac{1}{2\sigma^2}\sum_{i,z}\tau_{i,z}^{(k)}\|Y_i-A_z\theta\|^2 + \frac{\lambda}{2}\|\theta\|^2.
+\]
+Le problème reste quadratique et admet une solution explicite :
+\[
+\theta^{(k+1)} = \left(\sum_{i,z}\tau_{i,z}^{(k)} A_z^\top A_z + \lambda\sigma^2\,\Id\right)^{-1}
+\left(\sum_{i,z}\tau_{i,z}^{(k)} A_z^\top Y_i\right).
+\]
+L'ajout de $\lambda\sigma^2\Id$ améliore le conditionnement et réduit la variance de l'estimateur, au prix d'un léger biais.
+
+\subsection{Autres régulariseurs}
+
+Pour des signaux parcimonieux, on peut utiliser une pénalité $\ell_1$ ($R(\theta)=\|\theta\|_1$) ; pour des images, la variation totale. Ces choix rendent l'étape M non quadratique et nécessitent des algorithmes proximaux. Dans ce rapport, nous nous concentrons sur la régularisation de Tikhonov, efficace et simple à implémenter.
 % 
+
+
 
 
 
