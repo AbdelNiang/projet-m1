@@ -1,0 +1,1213 @@
+\documentclass[12pt, a4paper]{article}
+
+% ── Encodage et langue ──────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+
+% ── Mise en page ────────────────────────────────────────────────────────────
+\usepackage[top=2.5cm, bottom=2.5cm, left=2.8cm, right=2.8cm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+
+% ── Mathématiques ───────────────────────────────────────────────────────────
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{mathtools}
+\usepackage{bbm}          % \mathbbm{1}
+\usepackage{dsfont}       % \mathds{1}
+
+% ── Théorèmes ───────────────────────────────────────────────────────────────
+\newtheorem{theorem}{Théorème}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemme}
+\newtheorem{corollary}[theorem]{Corollaire}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Définition}
+\newtheorem{example}[theorem]{Exemple}
+\newtheorem{remark}[theorem]{Remarque}
+
+% ── Algorithmes ─────────────────────────────────────────────────────────────
+\usepackage[ruled, vlined, french]{algorithm2e}
+
+% ── Figures et tableaux ─────────────────────────────────────────────────────
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{subcaption}
+\usepackage{booktabs}
+\usepackage{caption}
+
+% ── Couleurs et hyperliens ──────────────────────────────────────────────────
+\usepackage{xcolor}
+\usepackage[colorlinks=true, linkcolor=blue!70!black,
+            citecolor=blue!70!black, urlcolor=blue!70!black]{hyperref}
+
+% ── Bibliographie ───────────────────────────────────────────────────────────
+\usepackage[numbers, sort&compress]{natbib}
+
+% ── Raccourcis mathématiques ────────────────────────────────────────────────
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\Zcal}{\mathcal{Z}}
+\newcommand{\Fcal}{\mathcal{F}}
+\newcommand{\Ncal}{\mathcal{N}}
+\newcommand{\norm}[1]{\left\|#1\right\|}
+\newcommand{\abs}[1]{\left|#1\right|}
+\newcommand{\inner}[2]{\langle #1,\, #2 \rangle}
+\newcommand{\Id}{\mathrm{Id}}
+\newcommand{\Tr}{\mathrm{Tr}}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+
+% —— Figures —————————————————————————————————————————————————————————————————
+\graphicspath{{figures/}}
+
+% ════════════════════════════════════════════════════════════════════════════
+\begin{document}
+
+% ── Page de titre ───────────────────────────────────────────────────────────
+\begin{titlepage}
+    \begin{center}
+
+        {\Large Université Paris Cité \\[0.3em]
+        M1 Mathématiques, Modélisation et Apprentissage Statistique} \\[1.5em]
+
+        \rule{\textwidth}{0.4pt}
+
+        \vspace{4em}
+
+        {\huge\bfseries Estimation dans un problème inverse linéaire
+        à variables cachées :\\[0.6em]
+        \large vraisemblance, algorithme EM\\[0.2em]
+        et analyse de l'erreur \par}
+
+        \vspace{5em}
+
+        {\Large Arthur Conche, Abdel Niang} \\[1em]
+        {\Large Année universitaire 2025--2026} \\[6em]
+
+        \textbf{Responsable universitaire :} Camille Pouchol
+
+    \end{center}
+\end{titlepage}
+
+% ── Remerciements ───────────────────────────────────────────────────────────
+\newpage
+\begin{center}
+    {\Large Remerciements}
+\end{center}
+\vspace{0.5em}
+\noindent\rule{\textwidth}{1pt}
+\vspace{1em}
+
+% TODO : rédiger les remerciements
+
+\vspace{1em}
+\noindent\rule{\textwidth}{1pt}
+
+% ── Résumé ──────────────────────────────────────────────────────────────────
+\newpage
+\begin{abstract}
+% TODO : rédiger le résumé (environ 15 lignes)
+% Présenter brièvement : le modèle (M), les deux cas d'application,
+% les méthodes étudiées (MV directe, EM), l'analyse de l'erreur.
+\end{abstract}
+
+% ── Table des matières ──────────────────────────────────────────────────────
+\newpage
+\tableofcontents
+
+% ════════════════════════════════════════════════════════════════════════════
+\newpage
+\section*{Introduction}
+\addcontentsline{toc}{section}{Introduction}
+\label{sec:introduction}
+
+La détermination de la structure tridimensionnelle des macromolécules biologiques
+--- protéines, virus, complexes ribosomaux --- est l'une des questions centrales
+de la biologie structurale moderne. Comprendre la géométrie précise d'une protéine,
+c'est comprendre son fonctionnement, ses interactions avec d'autres molécules, et
+ouvrir la voie à la conception rationnelle de médicaments. Depuis les années 2010,
+la \textit{cryo-microscopie électronique} (cryo-EM) s'est imposée comme la technique
+de référence pour cette reconstruction, au point que ses pionniers, Jacques Dubochet,
+Joachim Frank et Richard Henderson, ont reçu le Prix Nobel de Chimie en 2017.
+
+Le principe de la cryo-EM est le suivant. Des milliers de copies identiques de la
+molécule d'intérêt sont plongées dans une solution rapidement vitrifiée, si bien que
+chaque copie se fige dans une orientation aléatoire. Un faisceau d'électrons traverse
+l'échantillon et produit, pour chaque copie, une image bidimensionnelle : c'est la
+projection de la molécule selon l'axe du faisceau. L'observateur dispose donc de
+$n$ images, chacune étant la projection d'une molécule ayant subi une rotation
+inconnue dans $SO(3)$, et fortement perturbée par le bruit de mesure inhérent à la
+technique. La question est alors : comment reconstruire la structure 3D originale
+à partir de ces projections bruitées dont les orientations sont toutes ignorées ?
+
+Ce problème appartient à la classe des \textit{problèmes inverses linéaires avec
+variables cachées}. Dans la modélisation mathématique, la structure moléculaire
+inconnue est représentée par un paramètre $\theta$ dans un espace fonctionnel
+approprié. Chaque rotation aléatoire $Z_i$, non observée, détermine un opérateur
+linéaire $A_{Z_i}$ qui projette $\theta$ en une image bruitée $Y_i = A_{Z_i}\theta
++ \sigma E_i$. La difficulté fondamentale est double : il faut estimer $\theta$
+sans connaître les $Z_i$, et la marginalisation sur ces variables cachées rend la
+vraisemblance non quadratique, invalidant les approches classiques des moindres carrés.
+
+Ce rapport étudie ce problème dans deux cas simplifiés qui en capturent les
+difficultés essentielles. Le premier cas, en dimension 1, porte sur des translations
+aléatoires d'un signal périodique : il est analytiquement tractable et sert de
+terrain d'expérimentation pour tous les développements théoriques et numériques.
+Le second cas, en dimension 2, est l'analogue direct de la cryo-EM : des rotations
+aléatoires dans $\mathbb{R}^2$ suivies d'une projection, ce qui correspond à la
+transformée de Radon en deux dimensions.
+
+Nous commençons par poser rigoureusement le cadre mathématique et les deux cas
+d'application (Section~\ref{sec:mise_en_place}). Pour forger l'intuition, nous
+résolvons intégralement le problème simplifié où les transformations sont connues et
+constantes, ce qui fournit un estimateur explicite et une borne d'erreur de référence
+(Section~\ref{sec:sans_cachees}). Nous formulons ensuite le problème de maximum de
+vraisemblance dans le cas général et mettons en évidence une difficulté d'identifiabilité
+qui impose de reconsidérer la mesure d'erreur usuelle
+(Section~\ref{sec:mle}). Deux algorithmes d'optimisation sont alors développés et
+comparés : une descente de gradient directe sur la log-vraisemblance et l'algorithme
+d'espérance-maximisation (EM), dont chaque itération se ramène à un problème
+quadratique convexe (Section~\ref{sec:optimisation}). Nous analysons enfin
+quantitativement la précision de l'estimation en fonction du nombre de données $n$
+et du niveau de bruit $\sigma$, dans le cas avec variables cachées
+(Section~\ref{sec:analyse_erreur}), avant de présenter des extensions vers le cas
+des rotations en 2D et des approches de régularisation
+(Section~\ref{sec:extensions}).
+
+\section{Mise en place du problème}
+\label{sec:mise_en_place}
+
+\subsection{Cadre général}
+\label{subsec:cadre_general}
+
+On dispose de $n$ observations $Y_1, \ldots, Y_n \in \mathbb{R}^p$ et l'on cherche
+à estimer un paramètre inconnu $\theta$ appartenant à $E$, espace de Hilbert
+de dimension finie muni du produit scalaire $\inner{\cdot}{\cdot}$.
+
+Soit $(\Zcal, \Fcal, \mu)$ un espace mesuré. Pour chaque $z \in \Zcal$, on se
+donne un opérateur linéaire borné $A_z \in L(E, \R^p)$. Les observations suivent
+le modèle
+\begin{equation}
+    Y_i = A_{Z_i}\theta + \sigma E_i, \qquad i \in \{1, \ldots, n\}, \tag{M}
+    \label{eq:modele}
+\end{equation}
+où $\sigma > 0$ est un niveau de bruit connu, et les variables aléatoires
+$(Z_i)_{1 \leq i \leq n}$ et $(E_i)_{1 \leq i \leq n}$ vérifient les hypothèses suivantes.
+
+\begin{itemize}
+    \item Les $(Z_i)_{1 \leq i \leq n}$, à valeurs dans $\Zcal$, sont i.i.d.\
+    de densité $f_Z$ par rapport à la mesure $\mu$.
+    \item Les $(E_i)_{1 \leq i \leq n}$, à valeurs dans $\R^p$, sont i.i.d.\
+    de loi $\Ncal(0, \mathrm{Id}_p)$.
+    \item Les familles $(Z_i)_{1 \leq i \leq n}$ et $(E_i)_{1 \leq i \leq n}$
+    sont indépendantes.
+\end{itemize}
+
+Les variables $(Z_i)$ jouent le rôle de \textit{variables cachées} : elles
+déterminent quelle transformation linéaire $A_{Z_i}$ est appliquée à $\theta$
+avant observation, mais elles ne sont pas accessibles à l'observateur.
+Chaque $Y_i$ est donc une version transformée et bruitée de $\theta$, dont
+la transformation elle-même est inconnue. C'est cette double incertitude ---
+sur $\theta$ et sur les $Z_i$ --- qui constitue la difficulté centrale du problème.
+% - Espace de Hilbert E, espace mesuré (Z, F, mu)
+% - Opérateurs A_z in L(E, R^p)
+% - Présentation du modèle (M) : Y_i = A_{Z_i} theta + sigma E_i
+% - Hypothèses : Z_i i.i.d. de densité f_Z, E_i ~ N(0, Id_p), indépendance
+
+\subsection{Cas d'application}
+\label{subsec:cas_application}
+
+\subsubsection{Cas 1 : translations en 1D}
+\label{subsubsec:cas1}
+
+Le premier cas d'application est celui des \textit{translations sur le tore}.
+On note $\mathbb{T} = \mathbb{R} / 2\pi\mathbb{Z}$ le tore unidimensionnel,
+que l'on identifie à l'intervalle $[0, 2\pi)$ muni de la mesure de Lebesgue.
+L'espace ambiant est $L^2(\mathbb{T})$, l'espace des fonctions de carré intégrable
+et $2\pi$-périodiques, muni du produit scalaire
+\[
+    \inner{f}{g} = \frac{1}{2\pi} \int_0^{2\pi} f(x)\,\overline{g(x)}\,\mathrm{d}x.
+\]
+
+\paragraph{Sous-espace $E$ et discrétisation.}
+On travaille avec un sous-espace de dimension finie $d$ de $L^2(\mathbb{T})$,
+engendré par les premières harmoniques de Fourier :
+\[
+    E = \mathrm{Vect}\!\left(x \mapsto e^{ikx},\;
+    -\frac{d-1}{2} \leq k \leq \frac{d-1}{2}\right),
+\]
+où $d$ est supposé impair pour que l'espace soit symétrique autour de la fréquence
+nulle. Tout $\theta \in E$ s'écrit donc comme un polynôme trigonométrique de degré
+au plus $\frac{d-1}{2}$.
+En pratique numérique, comme $\theta$ est à valeurs réelles, la condition
+$\hat\theta_{-k} = \overline{\hat\theta_k}$ permet de se ramener à la base réelle
+$\bigl\{1,\,\cos(kx),\,\sin(kx)\bigr\}_{k=1}^{N}$ (avec $N = (d-1)/2$) et de
+représenter $\theta$ par un vecteur de coefficients
+$u = (a_0, a_1, b_1, \ldots, a_N, b_N)^\top \in \R^d$ via
+\[
+    \theta(x) = a_0 + \sum_{k=1}^{N}\bigl(a_k\cos(kx) + b_k\sin(kx)\bigr).
+\]
+C'est cette paramétrisation réelle qu'on utilise dans les implémentations numériques.
+
+Les observations sont effectuées sur une grille uniforme de $p \geq d$ points :
+\[
+    x_j = 2\pi\,\frac{j}{p}, \qquad j \in \{0, \ldots, p-1\}.
+\]
+La condition $p \geq d$ garantit que l'évaluation sur la grille est injective
+sur $E$, ce qui est nécessaire pour l'identifiabilité du problème.
+
+\paragraph{Opérateur de translation.}
+L'espace des variables cachées est $\Zcal = [0, 2\pi)$ muni de la mesure de
+Lebesgue normalisée. Pour $z \in [0, 2\pi)$ et $\theta \in E$, l'opérateur
+$A_z \in L(E, \R^p)$ est défini par évaluation de la translatée de $\theta$ :
+\[
+    (A_z\theta)_j = \theta(x_j - z), \qquad j \in \{0, \ldots, p-1\},
+\]
+où la soustraction $x_j - z$ est entendue modulo $2\pi$. Autrement dit, $A_z\theta$
+est le vecteur des valeurs de $\theta$ décalé de $z$ sur la grille.
+
+\begin{remark}
+    Puisque $\theta \in E$ est un polynôme trigonométrique, sa translatée
+    $x \mapsto \theta(x - z)$ appartient encore à $E$ pour tout $z \in [0, 2\pi)$.
+    L'opérateur $A_z$ est donc bien défini et sa structure se lit aisément dans la
+    base de Fourier : si $\theta = \sum_k \hat{\theta}_k\, e^{ikx}$, alors
+    \[
+        (A_z\theta)_j = \sum_{k} \hat{\theta}_k\, e^{ik(x_j - z)}
+        = \sum_{k} \hat{\theta}_k\, e^{-ikz}\, e^{ikx_j}.
+    \]
+    La translation par $z$ agit donc comme une modulation de phase dans l'espace de
+    Fourier : le coefficient $\hat{\theta}_k$ est multiplié par $e^{-ikz}$.
+\end{remark}
+
+\paragraph{Modèle dans le Cas 1.}
+Le modèle~\eqref{eq:modele} se spécialise ici en
+\[
+    Y_i = A_{Z_i}\theta + \sigma E_i \in \R^p,
+    \qquad (Y_i)_j = \theta(x_j - Z_i) + \sigma\,(E_i)_j,
+\]
+où les $Z_i$ sont i.i.d. de loi uniforme sur $[0, 2\pi)$, et les $(E_i)_j$
+sont i.i.d. $\Ncal(0, 1)$. Chaque observation $Y_i$ est donc un échantillonnage
+bruité de $\theta$ sur la grille, après une translation aléatoire inconnue.
+L'objectif est de reconstruire $\theta$ à partir des $n$ vecteurs $Y_1, \ldots, Y_n$,
+sans connaître les décalages $Z_1, \ldots, Z_n$.
+
+\paragraph{Lien avec la cryo-EM.}
+Ce cas constitue l'analogue unidimensionnel du problème de reconstruction
+moléculaire décrit en introduction. Le signal $\theta$ joue le rôle de la structure
+à reconstruire, la translation aléatoire $Z_i$ simule l'orientation inconnue de la
+molécule, et la projection sur la grille correspond à l'acquisition d'une image
+discrétisée. Sa relative simplicité analytique --- notamment la diagonalisation
+de $A_z$ dans la base de Fourier --- en fait le terrain naturel pour développer
+et valider les méthodes d'estimation étudiées dans ce rapport.
+
+\subsubsection{Cas 2 : rotations et projections en 2D}
+\label{subsubsec:cas2}
+
+Le second cas d'application est celui des \textit{rotations et projections en
+dimension 2}. Il constitue l'analogue bidimensionnel direct du problème de
+reconstruction en cryo-EM, et est étroitement lié à la tomographie par rayons X.
+
+\paragraph{Espace fonctionnel.}
+On note $B(0,1) = \{(x,y) \in \R^2 : x^2 + y^2 \leq 1\}$ la boule unité
+euclidienne dans $\R^2$. L'espace ambiant est $L^2(B(0,1))$, muni du produit
+scalaire
+\[
+    \inner{f}{g} = \int_{B(0,1)} f(\mathbf{x})\,\overline{g(\mathbf{x})}\,\mathrm{d}\mathbf{x}.
+\]
+Le paramètre inconnu $\theta \in E$, où $E$ est un sous-espace de dimension
+finie $d$ de $L^2(B(0,1))$, représente la densité bidimensionnelle à reconstruire
+--- l'analogue discret de la densité électronique d'une molécule.
+
+\paragraph{Opérateur de rotation.}
+L'espace des variables cachées est $\Zcal = [0, 2\pi)$ muni de la mesure de
+Lebesgue normalisée. Pour $z \in [0, 2\pi)$, on note $R_z$ la rotation plane
+d'angle $z$, de matrice
+\[
+    R_z = \begin{pmatrix} \cos z & -\sin z \\ \sin z & \cos z \end{pmatrix}.
+\]
+L'action de $R_z$ sur une fonction $\theta \in L^2(B(0,1))$ est définie par
+composition :
+\[
+    (R_z\theta)(\mathbf{x}) = \theta(R_z^{-1}\mathbf{x}) = \theta(R_{-z}\mathbf{x}),
+    \qquad \mathbf{x} \in B(0,1).
+\]
+Puisque $R_z$ est une isométrie de $B(0,1)$ dans lui-même, $R_z\theta$ est bien
+dans $L^2(B(0,1))$ dès que $\theta$ l'est.
+
+\paragraph{Opérateur de projection.}
+On définit l'opérateur de projection $P : L^2(B(0,1)) \to L^2([-1,1])$ par
+intégration selon l'axe $y$ :
+\[
+    (P\theta)(x) = \int_{\R} \theta(x, y)\,\mathrm{d}y, \qquad x \in [-1, 1].
+\]
+Cet opérateur est la \textit{transformée de Radon} de $\theta$ selon la direction
+verticale : il donne la somme (intégrale) de $\theta$ le long de chaque droite
+verticale $\{x\} \times \R$.
+
+\begin{remark}
+    La transformée de Radon complète de $\theta$ consiste à calculer $P(R_z\theta)$
+    pour tous les angles $z \in [0, \pi)$, ce qui correspond à projeter $\theta$ selon
+    toutes les directions du plan. Le théorème de la tranche de Fourier établit que la
+    transformée de Fourier 1D de $P(R_z\theta)$ en $x$ coïncide avec la transformée
+    de Fourier 2D de $\theta$ restreinte à la droite de direction $z$. C'est le
+    fondement théorique des algorithmes de rétroprojection filtrée utilisés en
+    tomographie.
+\end{remark}
+
+\paragraph{Opérateur $A_z$ et discrétisation.}
+L'opérateur $A_z \in L(E, \R^p)$ combine la rotation et la projection :
+\[
+    A_z = \mathrm{ev}_{\text{grille}} \circ\, P \circ R_z,
+\]
+où $\mathrm{ev}_{\text{grille}}$ désigne l'évaluation sur une grille uniforme
+de $p$ points $x_j = j/p \in [0, 1]$, $j \in \{0, \ldots, p-1\}$. Explicitement :
+\[
+    (A_z\theta)_j = (P R_z\theta)(x_j) = \int_{\R} \theta\!\left(R_{-z}
+    \begin{pmatrix} x_j \\ y \end{pmatrix}\right)\mathrm{d}y,
+    \qquad j \in \{0, \ldots, p-1\}.
+\]
+Chaque observation $(A_z\theta)_j$ est donc la valeur en $x_j$ de la projection
+de $\theta$ après rotation d'angle $z$.
+
+\paragraph{Modèle dans le Cas 2.}
+Le modèle~\eqref{eq:modele} se spécialise en
+\[
+    Y_i = A_{Z_i}\theta + \sigma E_i \in \R^p, \qquad
+    (Y_i)_j = \int_{\R} \theta\!\left(R_{-Z_i}\begin{pmatrix}x_j\\y\end{pmatrix}\right)
+    \mathrm{d}y + \sigma\,(E_i)_j,
+\]
+où les $Z_i$ sont i.i.d. de loi uniforme sur $[0, 2\pi)$, et les $(E_i)_j$ sont
+i.i.d. $\Ncal(0,1)$. Chaque $Y_i$ est un sinogramme partiel bruité de $\theta$ :
+c'est la projection de $\theta$ selon une direction aléatoire inconnue,
+échantillonnée sur $p$ points.
+
+\paragraph{Comparaison avec le Cas 1.}
+Le Cas 2 est structurellement plus proche du problème physique de départ que
+le Cas 1. Le groupe des variables cachées est le même ($[0, 2\pi)$ dans les deux
+cas), mais l'opérateur $A_z$ est ici un opérateur intégral --- la composition
+d'une rotation et d'une projection --- là où il était simplement une évaluation
+décalée dans le Cas 1. La diagonalisation dans la base de Fourier n'est plus
+aussi directe, ce qui rend les développements analytiques plus délicats et les
+algorithmes d'estimation plus coûteux numériquement. Pour ces raisons, le Cas 2
+sera traité principalement en Section~\ref{sec:extensions}, après que les méthodes
+aient été développées et validées sur le Cas 1.
+
+\subsection{Simulation des données et premières observations numériques}
+\label{subsec:simulation}
+% - Choix d'un sous-espace raisonnable de L^2(T), dimension d
+% - Génération des données du Cas 1 pour différents sigma, d, p
+% - Premières visualisations : impact du bruit, du nombre de mesures
+\paragraph{Génération d'une observation dans le Cas 1.}
+Pour simuler une observation $Y_i$, on fixe d'abord le vecteur $u \in \mathbb{R}^d$ des 
+coordonnées de $\theta$ dans la base trigonométrique réelle. 
+On tire un $Z_i$ à valeur dans $[0, 2 \pi]$ et on évalue $\theta$ translatée de $Z_i$ en chaque point de 
+la grille $x_j = 2 \pi \frac{j}{p}, j \in \{0,\dots, p-1\}$.
+On tire ensuite un vecteur de bruit gaussien $E_i \sim \mathcal{N}(0, \sigma \mathbf{Id}_p)$,
+et on observe $(Y_i)_j = \theta(x_j - Z_i) + (E_i)_j$.
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{simulation_parametres.pdf}
+    \caption{Influence des paramètres sur les observations simulées.
+    Haut : effet du niveau de bruit $\sigma$.
+    Bas : effet du nombre d'observations $n$.}
+    \label{fig:simulation_parametres}
+\end{figure}
+
+
+
+
+% ════════════════════════════════════════════════════════════════════════════
+\newpage
+\section{Cas de référence : le modèle sans variables cachées}
+\label{sec:sans_cachees}
+% Objectif de cette section : résoudre complètement le problème simplifié A_z = A
+% pour tous les z. Tout est explicite ici — cela sert de référence et de motivation
+% pour mesurer la difficulté introduite par les variables cachées dans les sections suivantes.
+
+
+
+
+
+\subsection{Modèle simplifié et estimateur du maximum de vraisemblance}
+\label{subsec:modele_simplifie}
+
+On se place dans le cas simplifié où les transformations ne dépendent pas des
+variables cachées $Z_i$ : on suppose $A_z = A$ pour tout $z \in \Zcal$,
+où $A \in L(E, \R^p)$ est un opérateur fixé. Le modèle~\eqref{eq:modele}
+se réduit alors à
+\begin{equation}
+    Y_i = A\theta + \sigma E_i, \qquad i \in \{1, \ldots, n\}.
+    \label{eq:modele_simple}
+\end{equation}
+Il s'agit d'un modèle linéaire gaussien : chaque observation $Y_i$ est une
+version bruitée de $A\theta$, sans transformation cachée. On suppose de plus
+que $A^\top A$ est inversible, ce qui est équivalent à l'injectivité de $A$
+et constitue une condition nécessaire d'identifiabilité.
+
+\paragraph{Densité et log-vraisemblance.}
+Conditionnellement à $\theta$, chaque $Y_i$ suit la loi $\Ncal(A\theta, \sigma^2\Id_p)$,
+de densité
+\[
+    p(y\,;\,\theta)
+    = \frac{1}{(2\pi\sigma^2)^{p/2}}
+      \exp\!\left(-\frac{\norm{y - A\theta}^2}{2\sigma^2}\right).
+\]
+Les observations étant i.i.d., la log-vraisemblance s'écrit
+\[
+    \ell_n(\theta)
+    = -\frac{np}{2}\log(2\pi\sigma^2)
+      - \frac{1}{2\sigma^2}\sum_{i=1}^{n}\norm{Y_i - A\theta}^2.
+\]
+Sa maximisation en $\theta$ est équivalente à la minimisation du critère des
+moindres carrés
+\begin{equation}
+    F(\theta) = \sum_{i=1}^{n}\norm{Y_i - A\theta}^2.
+    \label{eq:moindres_carres_simple}
+\end{equation}
+
+\paragraph{Estimateur du maximum de vraisemblance.}
+En notant $\bar{Y}_n = \frac{1}{n}\sum_{i=1}^{n} Y_i$ la moyenne empirique, on
+décompose
+\[
+    F(\theta)
+    = n\,\norm{\bar{Y}_n - A\theta}^2
+      + \sum_{i=1}^{n}\norm{Y_i - \bar{Y}_n}^2,
+\]
+où le second terme ne dépend pas de $\theta$ (car $\sum_i(Y_i - \bar{Y}_n) = 0$).
+Minimiser $F$ revient donc à minimiser $\norm{\bar{Y}_n - A\theta}^2$, qui est convexe en $\theta$, dont
+l'annulation du gradient donne les équations normales
+\[
+    A^\top A\,\theta = A^\top \bar{Y}_n.
+\]
+
+\begin{proposition}
+Sous l'hypothèse que $A^\top A$ est inversible, le problème de maximum de
+vraisemblance associé au modèle~\eqref{eq:modele_simple} admet un unique
+maximiseur~:
+\begin{equation}
+    \hat{\theta}_n
+    = \bigl(A^\top A\bigr)^{-1}A^\top \bar{Y}_n
+    = \frac{1}{n}\bigl(A^\top A\bigr)^{-1}A^\top\sum_{i=1}^{n} Y_i.
+    \label{eq:estimateur_simple}
+\end{equation}
+\end{proposition}
+
+\begin{remark}
+L'estimateur~\eqref{eq:estimateur_simple} est l'unique $\theta \in E$ tel que
+$A\theta$ soit le projeté orthogonal de $\bar{Y}_n$ sur $\mathrm{Im}(A)$.
+En notant $A^\dagger = (A^\top A)^{-1}A^\top$ le pseudo-inverse gauche de $A$,
+on a simplement $\hat{\theta}_n = A^\dagger\bar{Y}_n$.
+\end{remark}
+
+\subsection{Convexité et résolution exacte}
+\label{subsec:convexite_simple}
+% - La log-vraisemblance négative est strictement convexe (car A^T A inversible)
+% - Solution explicite du problème d'optimisation : pas besoin d'algorithme itératif
+% - Interprétation géométrique : projection orthogonale sur Im(A)
+
+\subsection{Analyse de l'erreur d'estimation}
+\label{subsec:erreur_simple}
+% - Calcul de epsilon_n(sigma) = E[|| theta_hat_n - theta ||^2]^{1/2}
+% - Preuve : epsilon_n = (sigma / sqrt(n)) * sqrt(Tr((A^T A)^{-1}))
+% - Nombre minimal de données n pour avoir epsilon_n <= epsilon (epsilon > 0 donné)
+% - Discussion : rôle de sigma, de la dimension de E, de la structure de A
+
+\paragraph{Erreur quadratique.}
+Naturellement pour estimer la précision de notre estimateur des moindres
+carrés, on utilise l'erreur quadratique :
+\[
+    \epsilon_n^2 = \E_{\theta}\!\left[\norm{\hat{\theta}_n - \theta}^2\right].
+\]
+On a
+\begin{align*}
+    \hat{\theta}_n
+    &= \frac{1}{n}\bigl(A^\top A\bigr)^{-1}A^\top\sum_{i=1}^{n} Y_i \\
+    &= \frac{1}{n}\bigl(A^\top A\bigr)^{-1}A^\top\sum_{i=1}^{n} (A\theta + \sigma E_i) \\
+    &= \theta + \frac{\sigma}{n}(A^\top A)^{-1}A^\top \sum_{i=1}^{n} E_i.
+\end{align*}
+
+Donc la variable aléatoire $\hat{\theta_n} - \theta$ suit une 
+$\mathcal{N}(0, \frac{\sigma^2}{n}(A^TA)^{-1} )$.
+
+\paragraph{Proposition 2.3.} 
+Soit $W$ une variable aléatoire de loi $\mathcal{N}(\mu, \Sigma)$, alors
+\begin{align*}
+    \mathbb{E}[\norm{W}_2 ^2] = \Tr(\Sigma)
+    + \norm{\mu}_2 ^2
+\end{align*}
+
+\paragraph{Corollaire 2.4.}
+L'erreur quadratique $\epsilon_n^2$ s'écrit alors
+\begin{align*}
+    \epsilon_n^2 = \frac{\sigma^2}{n} \Tr((A^TA)^{-1})
+\end{align*}
+
+
+\subsection{Ce que ce cas enseigne sur le cas général}
+\label{subsec:lecons}
+
+Le cas simplifié étudié dans cette section livre deux enseignements qui servent
+de référence pour la suite.
+
+\paragraph{Ce que l'on retient.}
+Quand l'opérateur est fixe ($A_z = A$ pour tout $z$), la log-vraisemblance est
+quadratique en $\theta$ et son maximum s'obtient par simple inversion de
+$A^\top A$. La formule $\epsilon_n^2 = \frac{\sigma^2}{n}\Tr\bigl((A^\top A)^{-1}\bigr)$
+quantifie précisément le compromis entre le bruit $\sigma$, la géométrie de $A$
+(via la trace de son inverse de Gram) et le nombre de données $n$ : l'erreur
+décroît en $1/\sqrt{n}$.
+
+\paragraph{Ce qui change avec les variables cachées.}
+Dès que $A_z$ dépend de $z$, deux difficultés apparaissent simultanément.
+
+\textit{Perte d'information par la moyenne.}
+L'espérance d'une observation vaut
+\[
+    \E[Y_i] = \int_\Zcal A_z\theta\,\mathrm{d}\mu(z) =: \bar{A}\theta,
+\]
+où $\bar{A} = \int_\Zcal A_z\,\mathrm{d}\mu(z)$. Dans le Cas~1 (translations
+uniformes sur le tore), ce calcul donne $(\bar{A}\theta)_j = \bar{\theta}$ pour
+tout $j$, où $\bar{\theta}$ est la moyenne de $\theta$ sur le tore : l'intégration
+sur les translations efface toute information de forme. La moyenne empirique
+$\bar{Y}_n$ converge donc vers un signal constant, et non vers $A\theta$.
+L'inversion directe de $\bar{A}$ ne peut pas restituer $\theta$.
+
+\textit{Non-quadraticité de la log-vraisemblance.}
+La vraisemblance marginale s'obtient en intégrant sur les variables cachées :
+\[
+    p(Y_i\,;\,\theta)
+    = \int_\Zcal \frac{1}{(2\pi\sigma^2)^{p/2}}
+      \exp\!\left(-\frac{\norm{Y_i - A_z\theta}^2}{2\sigma^2}\right)\mathrm{d}\mu(z).
+\]
+La log-vraisemblance $\ell_n(\theta) = \sum_{i=1}^n \log p(Y_i\,;\,\theta)$
+est une somme de logarithmes d'intégrales exponentielles --- une structure
+\textit{log-sum-exp} --- qui n'est plus quadratique en $\theta$. Il n'existe
+pas de forme close pour son maximiseur, et les équations normales~\eqref{eq:moindres_carres_simple}
+n'ont plus d'analogue.
+
+\paragraph{Perspectives.}
+Ces deux obstacles motivent les algorithmes de la Section~\ref{sec:optimisation} :
+la descente de gradient sur $\ell_n$, qui exploite sa différentiabilité, et
+l'algorithme EM, dont chaque itération se ramène --- grâce aux données complètes
+--- à un problème quadratique convexe analogue à~\eqref{eq:moindres_carres_simple}.
+La formule $\epsilon_n^2 = \frac{\sigma^2}{n}\Tr\bigl((A^\top A)^{-1}\bigr)$
+servira de référence pour évaluer le surcoût statistique dû aux variables
+cachées, analysé en Section~\ref{sec:analyse_erreur}.
+
+
+% ════════════════════════════════════════════════════════════════════════════
+\newpage
+\section{Formulation variationnelle et maximum de vraisemblance}
+\label{sec:mle}
+
+\subsection{Densité du couple \texorpdfstring{$(Y, Z)$}{(Y,Z)} et vraisemblance marginale}
+\label{subsec:densite}
+% - Densité conditionnelle de Y | Z=z : gaussienne N(A_z theta, sigma^2 Id_p)
+% - Densité jointe (Y, Z) par rapport à lambda_p x mu
+% - Vraisemblance marginale : intégration sur Z -> L(theta ; Y_1,...,Y_n)
+% - Log-vraisemblance : somme de log-somexp
+
+\subsection{Propriétés analytiques de la log-vraisemblance}
+\label{subsec:proprietes_ll}
+% - Régularité (différentiabilité, gradient, hessien)
+% - Convexité : la fonction à minimiser est-elle convexe ? Justification
+
+\subsection{Identifiabilité et choix d'une métrique adaptée}
+\label{subsec:identifiabilite}
+% - Pourquoi la norme standard || theta_hat - theta || est inadaptée (Cas 1)
+% - Invariance par translation : L(A_z theta) = L(A_z vartheta) pour certains theta != vartheta
+% - Reformulation : epsilon_n^2 = E[ inf_{L(A_z vartheta)=L(A_z theta)} || theta_hat - vartheta ||^2 ]
+% - Dans le Cas 1 : simplification avec inf_{a in [0,2pi]} || tau_a theta_hat - vartheta ||^2
+
+
+% ════════════════════════════════════════════════════════════════════════════
+\newpage
+
+
+\section{Résolution du problème d’optimisation}
+\label{sec:optimisation}
+
+Dans le cadre du modèle
+\[
+Y_i = A_{Z_i}\theta + \sigma E_i,
+\]
+la log-vraisemblance marginale s’écrit
+\[
+\ell_n(\theta)
+=
+\sum_{i=1}^n
+\log
+\left(
+\int_Z
+\frac{1}{(2\pi\sigma^2)^{p/2}}
+\exp\left(
+-\frac{\|Y_i-A_z\theta\|^2}{2\sigma^2}
+\right)
+f_Z(z)\,d\mu(z)
+\right).
+\]
+
+Contrairement au cas sans variables cachées étudié à la Section 2, cette fonction n’est plus quadratique en $\theta$. Il n’existe donc plus de formule explicite pour l’estimateur du maximum de vraisemblance.
+
+Nous présentons ici deux stratégies d’optimisation : une approche directe fondée sur la descente de gradient de la log-vraisemblance marginale, puis une approche indirecte utilisant l’algorithme Espérance-Maximisation (EM), particulièrement adapté aux modèles à variables cachées.
+
+\subsection{Approche directe : descente de gradient}
+\label{subsec:gradient}
+
+\subsubsection{Gradient de la log-vraisemblance marginale}
+
+Sous des hypothèses de régularité permettant la dérivation sous le signe intégral, on obtient
+
+\[
+\nabla \ell_n(\theta)
+=
+\frac{1}{\sigma^2}
+\sum_{i=1}^n
+\int_Z
+A_z^\top (Y_i-A_z\theta)
+\,f_\theta(z\mid Y_i)\,d\mu(z),
+\]
+
+où
+\[
+f_\theta(z\mid Y_i)
+\]
+désigne la densité a posteriori de $Z_i$ sachant $Y_i$, donnée par la formule de Bayes :
+
+\[
+f_\theta(z\mid Y_i)
+=
+\frac{
+f_Z(z)
+\exp\left(
+-\frac{\|Y_i-A_z\theta\|^2}{2\sigma^2}
+\right)
+}{
+\int_Z
+f_Z(z')
+\exp\left(
+-\frac{\|Y_i-A_{z'}\theta\|^2}{2\sigma^2}
+\right)
+d\mu(z')
+}.
+\]
+
+Le gradient apparaît ainsi comme une moyenne pondérée des résidus
+\[
+Y_i-A_z\theta,
+\]
+les poids étant donnés par les probabilités a posteriori des variables cachées.
+
+\subsubsection{Application au Cas 1}
+
+Dans le Cas 1, les variables cachées correspondent à des translations sur le tore :
+\[
+(A_z\theta)(x)=\theta(x-z),
+\qquad z\in[0,2\pi).
+\]
+
+Le signal $\theta$ est représenté dans la base trigonométrique réelle :
+\[
+\theta(x)
+=
+a_0
++
+\sum_{k=1}^N
+\bigl(
+a_k\cos(kx)+b_k\sin(kx)
+\bigr).
+\]
+
+Dans la base de Fourier complexe,
+\[
+\theta(x)=\sum_k \widehat{\theta}_k e^{ikx},
+\]
+la translation agit par modulation de phase :
+\[
+\widehat{\theta}_k
+\longmapsto
+e^{-ikz}\widehat{\theta}_k.
+\]
+
+Cette propriété permet une implémentation efficace des opérateurs $A_z$ ainsi qu’une accélération des calculs par transformée de Fourier rapide (FFT).
+
+En pratique, l’espace latent $Z=[0,2\pi)$ est discrétisé en
+\[
+z_1,\dots,z_M.
+\]
+
+L’itération de gradient devient alors
+\[
+\theta^{(k+1)}
+=
+\theta^{(k)}
++
+\frac{\eta_k}{\sigma^2}
+\sum_{i=1}^n
+\sum_{m=1}^M
+w_{i,m}^{(k)}
+A_{z_m}^\top
+(Y_i-A_{z_m}\theta^{(k)}),
+\]
+
+avec
+\[
+w_{i,m}^{(k)}
+=
+\frac{
+f_Z(z_m)
+\exp\left(
+-\frac{\|Y_i-A_{z_m}\theta^{(k)}\|^2}{2\sigma^2}
+\right)
+}{
+\sum_{\ell=1}^M
+f_Z(z_\ell)
+\exp\left(
+-\frac{\|Y_i-A_{z_\ell}\theta^{(k)}\|^2}{2\sigma^2}
+\right)
+}.
+\]
+
+\paragraph{Convergence de la méthode de gradient.}
+
+Sous des hypothèses classiques de régularité, notamment la Lipschitzianité locale du gradient de $\ell_n$, et pour un choix approprié du pas $(\eta_k)_k$, la suite produite par la méthode de gradient converge vers un point critique de la log-vraisemblance.
+
+Cependant, la fonction $\ell_n$ étant généralement non convexe dans les modèles à variables cachées, cette convergence ne garantit pas l’obtention d’un maximum global.
+
+\paragraph{Limites de l’approche directe.}
+
+La descente de gradient est simple à implémenter mais présente plusieurs difficultés :
+\begin{itemize}
+\item la log-vraisemblance est généralement non convexe ;
+\item le choix du pas $\eta_k$ est délicat ;
+\item le calcul du gradient nécessite une intégration sur l’espace latent ;
+\item l’algorithme peut converger lentement ou rester bloqué dans un maximum local.
+\end{itemize}
+
+Dans le Cas 1 discrétisé avec $M$ translations possibles, le coût d’une itération est de l’ordre de
+\[
+O(nMp).
+\]
+L’utilisation de la FFT permet toutefois d’accélérer significativement les calculs liés aux translations.
+
+Ces limitations motivent l’utilisation d’une méthode plus adaptée à la structure probabiliste du modèle : l’algorithme EM.
+
+\subsection{Algorithme Espérance-Maximisation}
+\label{subsec:em}
+
+\subsubsection{Principe général}
+\label{subsubsec:em_general}
+
+L’algorithme EM exploite la structure des données complètes
+\[
+(Y_i,Z_i).
+\]
+
+La construction de l’algorithme EM repose sur une décomposition variationnelle de la log-vraisemblance, parfois appelée identité de Fisher. Elle consiste à remplacer le problème de maximisation de la vraisemblance marginale par une suite de problèmes plus simples portant sur la vraisemblance complète.
+
+La log-vraisemblance complète est donnée par
+\[
+\log p(Y,Z;\theta)
+=
+-\frac{np}{2}\log(2\pi\sigma^2)
+-
+\frac{1}{2\sigma^2}
+\sum_{i=1}^n
+\|Y_i-A_{Z_i}\theta\|^2
++
+\sum_{i=1}^n
+\log f_Z(Z_i).
+\]
+
+Lorsque les variables cachées $Z_i$ sont connues, cette fonction est quadratique en $\theta$, ce qui ramène le problème à un problème de moindres carrés.
+
+\subsubsection{Application au modèle (M)}
+\label{subsubsec:em_modele}
+
+\paragraph{Fonction auxiliaire.}
+
+À partir d’une estimation courante $\theta^{(k)}$, on définit
+\[
+Q(\theta\mid\theta^{(k)})
+=
+\mathbb E_{\theta^{(k)}}
+\bigl[
+\log p(Y,Z;\theta)
+\mid Y
+\bigr].
+\]
+
+L’algorithme EM alterne alors deux étapes.
+
+\paragraph{Étape E.}
+
+On calcule les probabilités a posteriori
+\[
+\tau_{i,z}^{(k)}
+=
+f_{\theta^{(k)}}(z\mid Y_i).
+\]
+
+Dans le cas discret,
+\[
+\tau_{i,z}^{(k)}
+=
+\frac{
+f_Z(z)
+\exp\left(
+-\frac{\|Y_i-A_z\theta^{(k)}\|^2}{2\sigma^2}
+\right)
+}{
+\sum_{z'\in Z}
+f_Z(z')
+\exp\left(
+-\frac{\|Y_i-A_{z'}\theta^{(k)}\|^2}{2\sigma^2}
+\right)
+}.
+\]
+
+\paragraph{Étape M.}
+
+À constante additive près,
+\[
+Q(\theta\mid\theta^{(k)})
+=
+-
+\frac{1}{2\sigma^2}
+\sum_{i=1}^n
+\sum_{z\in Z}
+\tau_{i,z}^{(k)}
+\|Y_i-A_z\theta\|^2.
+\]
+
+Pour des poids $\tau_{i,z}^{(k)}$ fixés, la fonction
+\[
+\theta
+\longmapsto
+\sum_{i=1}^n
+\sum_{z\in Z}
+\tau_{i,z}^{(k)}
+\|Y_i-A_z\theta\|^2
+\]
+est quadratique convexe en $\theta$.
+
+La M-step admet donc une solution unique dès que la matrice
+\[
+\sum_{i=1}^n
+\sum_{z\in Z}
+\tau_{i,z}^{(k)}
+A_z^\top A_z
+\]
+est inversible.
+
+Maximiser $Q$ revient donc à résoudre un problème de moindres carrés pondérés.
+
+Les équations normales sont
+\[
+\left(
+\sum_{i=1}^n
+\sum_{z\in Z}
+\tau_{i,z}^{(k)}
+A_z^\top A_z
+\right)\theta
+=
+\sum_{i=1}^n
+\sum_{z\in Z}
+\tau_{i,z}^{(k)}
+A_z^\top Y_i.
+\]
+
+La mise à jour EM est donc
+\[
+\theta^{(k+1)}
+=
+\left(
+\sum_{i=1}^n
+\sum_{z\in Z}
+\tau_{i,z}^{(k)}
+A_z^\top A_z
+\right)^{-1}
+\left(
+\sum_{i=1}^n
+\sum_{z\in Z}
+\tau_{i,z}^{(k)}
+A_z^\top Y_i
+\right).
+\]
+
+\paragraph{Propriétés théoriques.}
+
+\begin{proposition}[Dempster, Laird et Rubin]
+L’algorithme EM augmente la log-vraisemblance marginale à chaque itération :
+\[
+\ell_n(\theta^{(k+1)})
+\geq
+\ell_n(\theta^{(k)}).
+\]
+\end{proposition}
+
+\begin{theorem}[Wu, 1983]
+Toute valeur d’adhérence de la suite
+\[
+(\theta^{(k)})_{k\geq0}
+\]
+est un point critique de la log-vraisemblance :
+\[
+\nabla\ell_n(\theta)=0.
+\]
+\end{theorem}
+
+Ce résultat montre que l’algorithme EM ne converge pas arbitrairement : toute limite éventuelle de la suite des itérés correspond à un point stationnaire de la log-vraisemblance marginale.
+
+En revanche, la non-convexité du problème n’assure pas la convergence vers un maximum global.
+
+\subsection{Comparaison des deux approches}
+\label{subsec:comparaison}
+
+La descente de gradient agit directement sur la log-vraisemblance marginale. Elle est simple à implémenter mais sensible au choix du pas et à la non-convexité du problème.
+
+L’algorithme EM exploite quant à lui la structure probabiliste du modèle à variables cachées. Chaque itération résout un problème quadratique analogue à celui du cas sans variables cachées, ce qui fournit généralement une meilleure stabilité numérique.
+
+Chaque itération de l’EM nécessite la résolution d’un système linéaire, ce qui peut être plus coûteux qu’une simple étape de gradient. Cependant, l’algorithme EM nécessite souvent moins d’itérations pour atteindre une solution satisfaisante.
+
+Dans nos expériences sur le Cas 1, l’algorithme EM s’est montré plus robuste et a conduit à des reconstructions plus précises en présence de bruit.
+
+
+% ════════════════════════════════════════════════════════════════════════════
+\newpage
+\section{Analyse de la qualité de l'estimation}
+\label{sec:analyse_erreur}
+
+\subsection{Retour au cas général avec variables cachées}
+\label{subsec:avec_variables_cachees}
+% - Contraste avec la Section 2 : on ne dispose plus d'un estimateur explicite
+% - Pourquoi la norme standard || theta_hat - theta || est inadaptée (reprendre Section 3.3)
+% - Reformulation de epsilon_n^2(sigma) avec la métrique invariante par translation
+% - Dans le Cas 1 : simplification avec inf_{a in [0,2pi]} || tau_a theta_hat - vartheta ||^2
+
+\subsection{Étude numérique de \texorpdfstring{$\varepsilon_n(\sigma)$}{epsilon_n(sigma)}}
+\label{subsec:etude_numerique_erreur}
+% - Courbes epsilon_n en fonction de n pour différents sigma (Cas 1)
+% - Courbes epsilon_n en fonction de sigma pour différents n
+% - Impact de d et p : discussion
+
+% ════════════════════════════════════════════════════════════════════════════
+
+\newpage
+\section{Régularisation pour les problèmes inverses mal posés}
+
+Dans le modèle étudié, l’estimation de $\theta$ repose sur l’inversion de matrices de la forme
+
+\[
+M^{(k)}
+=
+\sum_{i=1}^n
+\sum_{z\in Z}
+\tau_{i,z}^{(k)}
+A_z^\top A_z,
+\]
+
+apparaissant dans l’étape M de l’algorithme EM.
+
+Dans le Cas 1 (translations sur le tore), les opérateurs $A_z$ conservent globalement l’information du signal, et la diagonalisation de Fourier permet une inversion relativement stable.
+
+En revanche, dans le Cas 2, les opérateurs
+\[
+A_z = P\circ R_z
+\]
+sont des compositions de rotations et de projections. L’opérateur de projection
+\[
+P : L^2(B(0,1)) \to L^2([-1,1])
+\]
+réduit la dimension des données observées et entraîne une perte d’information intrinsèque.
+
+Certaines composantes de $\theta$ influencent alors très faiblement les observations, ce qui rend le problème inverse mal posé. En particulier, la matrice $M^{(k)}$ possède souvent de très petites valeurs propres, et son inversion amplifie fortement le bruit présent dans les données.
+
+Cette instabilité peut provoquer :
+\begin{itemize}
+\item une forte sensibilité au bruit ;
+\item des oscillations numériques ;
+\item une divergence ou une mauvaise convergence de l’algorithme EM.
+\end{itemize}
+
+Pour stabiliser le problème, on introduit une régularisation.
+
+\subsection{Vraisemblance pénalisée}
+
+On remplace la log-vraisemblance marginale par une version pénalisée :
+
+\[
+\ell_n^{\mathrm{reg}}(\theta)
+=
+\ell_n(\theta)-\lambda R(\theta),
+\]
+
+où :
+\begin{itemize}
+\item $\lambda>0$ est un paramètre de régularisation ;
+\item $R(\theta)$ est un terme de pénalité favorisant des solutions plus régulières.
+\end{itemize}
+
+Dans le cadre de l’algorithme EM, la M-step devient
+
+\[
+\theta^{(k+1)}
+=
+\arg\max_{\theta\in E}
+Q(\theta\mid\theta^{(k)})
+-\lambda R(\theta).
+\]
+
+\subsection{Régularisation de Tikhonov}
+
+Le choix le plus simple consiste à prendre
+
+\[
+R(\theta)=\frac12\|\theta\|^2.
+\]
+
+Cette pénalité quadratique correspond à la régularisation de Tikhonov (ou ridge).
+
+La M-step régularisée devient alors
+
+\[
+\min_{\theta\in E}
+\frac1{2\sigma^2}
+\sum_{i=1}^n
+\sum_{z\in Z}
+\tau_{i,z}^{(k)}
+\|Y_i-A_z\theta\|^2
++
+\frac{\lambda}{2}\|\theta\|^2.
+\]
+
+En annulant le gradient, on obtient les équations normales régularisées :
+
+\[
+\left(
+\sum_{i=1}^n
+\sum_{z\in Z}
+\tau_{i,z}^{(k)}
+A_z^\top A_z
++
+\lambda\sigma^2 I
+\right)\theta
+=
+\sum_{i=1}^n
+\sum_{z\in Z}
+\tau_{i,z}^{(k)}
+A_z^\top Y_i.
+\]
+
+La mise à jour EM devient donc
+
+\[
+\theta^{(k+1)}
+=
+\left(
+\sum_{i=1}^n
+\sum_{z\in Z}
+\tau_{i,z}^{(k)}
+A_z^\top A_z
++
+\lambda\sigma^2 I
+\right)^{-1}
+\left(
+\sum_{i=1}^n
+\sum_{z\in Z}
+\tau_{i,z}^{(k)}
+A_z^\top Y_i
+\right).
+\]
+
+L’ajout du terme
+\[
+\lambda\sigma^2 I
+\]
+améliore le conditionnement de la matrice à inverser et réduit l’amplification du bruit.
+
+\subsection{Interprétation spectrale}
+
+Soient
+\[
+\mu_1\geq \mu_2\geq \cdots \geq \mu_d>0
+\]
+les valeurs propres de la matrice
+
+\[
+M^{(k)}
+=
+\sum_{i,z}\tau_{i,z}^{(k)}A_z^\top A_z.
+\]
+
+Lorsque certaines valeurs propres sont très petites, les directions correspondantes de l’espace des paramètres sont très peu observées par les données. L’inversion de $M^{(k)}$ amplifie alors fortement le bruit dans ces directions.
+
+La régularisation remplace les valeurs propres $\mu_j$ par
+
+\[
+\mu_j+\lambda\sigma^2,
+\]
+
+ce qui évite les divisions par de très petites quantités et stabilise l’inversion.
+
+Cette stabilisation réduit la variance de l’estimateur, au prix d’un biais supplémentaire : c’est le compromis classique biais-variance des problèmes inverses statistiques.
+
+
+\subsection{Remarque pratique}
+
+En pratique, il peut être avantageux de restreindre l’espace des solutions à une famille paramétrique plus régulière, par exemple des mélanges de gaussiennes.
+
+Cette approche réduit le nombre effectif de paramètres et améliore la stabilité numérique de l’algorithme EM, notamment dans le Cas 2 où les projections entraînent une perte importante d’information.
+%
+
+
+
+
+% ════════════════════════════════════════════════════════════════════════════
+\newpage
+\section{Extensions}
+\label{sec:extensions}
+
+\subsection{Cas 2 : rotations et projections en 2D}
+\label{subsec:cas2_extensions}
+% - Rappel du modèle, lien avec la tomographie
+% - Adaptation des algorithmes (gradient, EM) au Cas 2
+% - Résultats numériques : reconstruction d'une image 2D
+% - Comparaison avec le Cas 1
+
+\subsection{Régularisation}
+\label{subsec:regularisation}
+% - Motivation : problème mal posé, connaissance a priori sur theta
+% - Ajout d'un terme R(theta) dans la vraisemblance pénalisée
+% - Exemples de régulariseurs : Tikhonov (||theta||^2), variation totale, L^1
+% - Adaptation des algorithmes : gradient proximal, ADMM
+% - Résultats numériques
+
+
+% ════════════════════════════════════════════════════════════════════════════
+\newpage
+\section*{Conclusion}
+\addcontentsline{toc}{section}{Conclusion}
+% - Bilan des méthodes étudiées
+% - Apports théoriques et numériques
+% - Limites et perspectives
+
+
+% ── Bibliographie ───────────────────────────────────────────────────────────
+\newpage
+\bibliographystyle{plainnat}
+\bibliography{references}
+% Fichier references.bib à créer
+% Références suggérées :
+%   - Dempster, Laird, Rubin (1977) - article fondateur de l'EM
+%   - McLachlan & Krishnan - The EM Algorithm and Extensions
+%   - Cavalier (2008) - Inverse problems in statistics
+%   - Boyd & Vandenberghe - Convex Optimization (pour la partie optimisation)
+
+
+\end{document}
