@@ -627,47 +627,42 @@ cachées, analysé en Section~\ref{sec:analyse_erreur}.
 
 % ════════════════════════════════════════════════════════════════════════════
 \newpage
-\section{Résolution du problème d’optimisation}
+\section{Résolution du problème d'optimisation}
 \label{sec:optimisation}
 
 Dans le cadre du modèle
 \[
 Y_i = A_{Z_i}\theta + \sigma E_i,
 \]
-la log-vraisemblance marginale s’écrit
+la log-vraisemblance marginale s'écrit
 \[
 \ell_n(\theta)
 =
 \sum_{i=1}^n
 \log
 \left(
-\int_Z
+\int_{\mathcal{Z}}
 \frac{1}{(2\pi\sigma^2)^{p/2}}
-\exp\left(
+\exp\!\left(
 -\frac{\|Y_i-A_z\theta\|^2}{2\sigma^2}
 \right)
 f_Z(z)\,d\mu(z)
 \right).
 \]
 
-Contrairement au cas sans variables cachées étudié à la Section 2, cette fonction n’est plus quadratique en $\theta$. Il n’existe donc plus de formule explicite pour l’estimateur du maximum de vraisemblance.
+Contrairement au cas sans variables cachées (Section~\ref{sec:sans_cachees}), cette fonction n'est pas quadratique en $\theta$ ; il n'existe donc pas de formule explicite pour l'estimateur du maximum de vraisemblance. Nous présentons deux stratégies d'optimisation : une descente de gradient directe sur $\ell_n$, puis l'algorithme Espérance-Maximisation (EM), qui exploite la structure probabiliste du modèle.
 
-Nous présentons ici deux stratégies d’optimisation : une approche directe fondée sur la descente de gradient de la log-vraisemblance marginale, puis une approche indirecte utilisant l’algorithme Espérance-Maximisation (EM), particulièrement adapté aux modèles à variables cachées.
-
+% ----------------------------------------------------------------------------
 \subsection{Approche directe : descente de gradient}
 \label{subsec:gradient}
 
 \subsubsection{Gradient de la log-vraisemblance marginale}
 
-Sous des hypothèses de domination permettant la dérivation sous le signe intégral, on calcule le gradient de $\ell_n$. Pour une observation $Y_i$, posons
+Sous des hypothèses de domination permettant de dériver sous le signe intégral, on calcule le gradient de $\ell_n$. Pour une observation $Y_i$, posons
 \[
 p(Y_i;\theta) = \int_{\mathcal{Z}} \frac{1}{(2\pi\sigma^2)^{p/2}} \exp\!\left( -\frac{\|Y_i-A_z\theta\|^2}{2\sigma^2} \right) f_Z(z)\,d\mu(z).
 \]
-Alors
-\[
-\nabla_\theta \log p(Y_i;\theta) = \frac{\nabla_\theta p(Y_i;\theta)}{p(Y_i;\theta)}.
-\]
-En dérivant sous l’intégrale,
+Alors $\nabla_\theta \log p(Y_i;\theta) = \frac{\nabla_\theta p(Y_i;\theta)}{p(Y_i;\theta)}$. En dérivant sous l'intégrale,
 \[
 \nabla_\theta p(Y_i;\theta) = \int_{\mathcal{Z}} \frac{1}{(2\pi\sigma^2)^{p/2}} \exp\!\left( -\frac{\|Y_i-A_z\theta\|^2}{2\sigma^2} \right) \frac{A_z^\top (Y_i-A_z\theta)}{\sigma^2} f_Z(z)\,d\mu(z).
 \]
@@ -679,315 +674,139 @@ où la densité \textit{a posteriori} de $Z_i$ sachant $Y_i$ est donnée par la 
 \[
 f_\theta(z\mid Y_i) = \frac{ f_Z(z) \exp\!\left( -\frac{\|Y_i-A_z\theta\|^2}{2\sigma^2} \right) }{ \int_{\mathcal{Z}} f_Z(z') \exp\!\left( -\frac{\|Y_i-A_{z'}\theta\|^2}{2\sigma^2} \right) d\mu(z') }.
 \]
-Finalement, le gradient de $\ell_n$ s’écrit
+Finalement, le gradient de $\ell_n$ s'écrit
 \[
 \boxed{ \nabla \ell_n(\theta) = \frac{1}{\sigma^2} \sum_{i=1}^n \int_{\mathcal{Z}} A_z^\top (Y_i-A_z\theta) \, f_\theta(z\mid Y_i)\,d\mu(z) }.
 \]
 
-\subsubsection{Application au Cas 1}
+\subsubsection{Application au Cas 1 (translations 1D) et discrétisation}
 
-Dans le Cas 1, les variables cachées correspondent à des translations sur le tore :
+Dans le Cas~1, $\mathcal{Z}=[0,2\pi)$, $f_Z$ est uniforme, et $(A_z\theta)(x)=\theta(x-z)$.  
+Pour une mise en œuvre numérique, on discrétise l'espace latent en $M$ points $z_1,\dots,z_M$ (par exemple une grille régulière). L'intégrale est alors remplacée par une somme, et l'itération de gradient (à pas $\eta_k$) devient
 \[
-(A_z\theta)(x)=\theta(x-z),
-\qquad z\in[0,2\pi).
+\theta^{(k+1)} = \theta^{(k)} + \frac{\eta_k}{\sigma^2} \sum_{i=1}^n \sum_{m=1}^M w_{i,m}^{(k)} A_{z_m}^\top \bigl( Y_i - A_{z_m}\theta^{(k)} \bigr),
+\]
+avec les poids normalisés
+\[
+w_{i,m}^{(k)} = \frac{ f_Z(z_m) \exp\!\left( -\frac{\|Y_i - A_{z_m}\theta^{(k)}\|^2}{2\sigma^2} \right) }{ \sum_{\ell=1}^M f_Z(z_\ell) \exp\!\left( -\frac{\|Y_i - A_{z_\ell}\theta^{(k)}\|^2}{2\sigma^2} \right) }.
 \]
 
-Le signal $\theta$ est représenté dans la base trigonométrique réelle :
-\[
-\theta(x)
-=
-a_0
-+
-\sum_{k=1}^N
-\bigl(
-a_k\cos(kx)+b_k\sin(kx)
-\bigr).
-\]
+\paragraph{Convergence et limites.}
+Sous des hypothèses classiques (gradient lipschitzien, pas $\eta_k$ choisi selon les règles usuelles), la suite $(\theta^{(k)})$ converge vers un point critique de $\ell_n$. Cependant, $\ell_n$ est généralement non convexe ; la convergence n'est donc pas garantie vers un maximum global. De plus, le choix du pas est délicat et le calcul du gradient nécessite une intégration (ou sommation) sur $\mathcal{Z}$. Ces limitations motivent l'algorithme EM.
 
-Dans la base de Fourier complexe,
-\[
-\theta(x)=\sum_k \widehat{\theta}_k e^{ikx},
-\]
-la translation agit par modulation de phase :
-\[
-\widehat{\theta}_k
-\longmapsto
-e^{-ikz}\widehat{\theta}_k.
-\]
-
-Cette propriété permet une implémentation efficace des opérateurs $A_z$ ainsi qu’une accélération des calculs par transformée de Fourier rapide (FFT).
-
-En pratique, l’espace latent $Z=[0,2\pi)$ est discrétisé en
-\[
-z_1,\dots,z_M.
-\]
-
-L’itération de gradient devient alors
-\[
-\theta^{(k+1)}
-=
-\theta^{(k)}
-+
-\frac{\eta_k}{\sigma^2}
-\sum_{i=1}^n
-\sum_{m=1}^M
-w_{i,m}^{(k)}
-A_{z_m}^\top
-(Y_i-A_{z_m}\theta^{(k)}),
-\]
-
-avec
-\[
-w_{i,m}^{(k)}
-=
-\frac{
-f_Z(z_m)
-\exp\left(
--\frac{\|Y_i-A_{z_m}\theta^{(k)}\|^2}{2\sigma^2}
-\right)
-}{
-\sum_{\ell=1}^M
-f_Z(z_\ell)
-\exp\left(
--\frac{\|Y_i-A_{z_\ell}\theta^{(k)}\|^2}{2\sigma^2}
-\right)
-}.
-\]
-
-\paragraph{Convergence de la méthode de gradient.}
-
-Sous des hypothèses classiques de régularité, notamment la Lipschitzianité locale du gradient de $\ell_n$, et pour un choix approprié du pas $(\eta_k)_k$, la suite produite par la méthode de gradient converge vers un point critique de la log-vraisemblance.
-
-Cependant, la fonction $\ell_n$ étant généralement non convexe dans les modèles à variables cachées, cette convergence ne garantit pas l’obtention d’un maximum global.
-
-\paragraph{Limites de l’approche directe.}
-
-La descente de gradient est simple à implémenter mais présente plusieurs difficultés :
-\begin{itemize}
-\item la log-vraisemblance est généralement non convexe ;
-\item le choix du pas $\eta_k$ est délicat ;
-\item le calcul du gradient nécessite une intégration sur l’espace latent ;
-\item l’algorithme peut converger lentement ou rester bloqué dans un maximum local.
-\end{itemize}
-
-Dans le Cas 1 discrétisé avec $M$ translations possibles, le coût d’une itération est de l’ordre de
-\[
-O(nMp).
-\]
-L’utilisation de la FFT permet toutefois d’accélérer significativement les calculs liés aux translations.
-
-Ces limitations motivent l’utilisation d’une méthode plus adaptée à la structure probabiliste du modèle : l’algorithme EM.
-
+% ----------------------------------------------------------------------------
 \subsection{Algorithme Espérance-Maximisation}
 \label{subsec:em}
 
 \subsubsection{Principe général}
-\label{subsubsec:em_general}
 
-L’algorithme EM exploite la structure des données complètes
-\[
-(Y_i,Z_i).
-\]
-
-La construction de l’algorithme EM repose sur une décomposition variationnelle de la log-vraisemblance, parfois appelée identité de Fisher. Elle consiste à remplacer le problème de maximisation de la vraisemblance marginale par une suite de problèmes plus simples portant sur la vraisemblance complète.
-
-La log-vraisemblance complète est donnée par
+L'algorithme EM exploite les données complètes $(Y_i,Z_i)$. La log‑vraisemblance complète est
 \[
 \log p(Y,Z;\theta)
-=
--\frac{np}{2}\log(2\pi\sigma^2)
--
-\frac{1}{2\sigma^2}
-\sum_{i=1}^n
-\|Y_i-A_{Z_i}\theta\|^2
-+
-\sum_{i=1}^n
-\log f_Z(Z_i).
+= -\frac{np}{2}\log(2\pi\sigma^2)
+- \frac{1}{2\sigma^2} \sum_{i=1}^n \|Y_i - A_{Z_i}\theta\|^2
++ \sum_{i=1}^n \log f_Z(Z_i).
 \]
+Si les $Z_i$ étaient observés, le problème serait quadratique en $\theta$ (moindres carrés). L'EM remplace les $Z_i$ par leur espérance conditionnelle.
 
-Lorsque les variables cachées $Z_i$ sont connues, cette fonction est quadratique en $\theta$, ce qui ramène le problème à un problème de moindres carrés.
+\subsubsection{Discrétisation de l'espace latent}
 
-\subsubsection{Application au modèle (M)}
-\label{subsubsec:em_modele}
+Dans la pratique, on discrétise $\mathcal{Z}$ en un ensemble fini $\mathcal{Z}_{\text{disc}} = \{z_1,\dots,z_M\}$ (par exemple une grille régulière). Les intégrales deviennent des sommes. On suppose que $f_Z$ est une densité par rapport à la mesure $\mu$, et que $\mu$ est la mesure de comptage sur $\mathcal{Z}_{\text{disc}}$ après discrétisation.
 
-\paragraph{Fonction auxiliaire.}
+\subsubsection{Définition de la fonction auxiliaire}
 
-À partir d’une estimation courante $\theta^{(k)}$, on définit
+Soit $\theta^{(k)}$ l'estimation courante. On définit
 \[
-Q(\theta\mid\theta^{(k)})
-=
-\mathbb E_{\theta^{(k)}}
-\bigl[
-\log p(Y,Z;\theta)
-\mid Y
-\bigr].
+Q(\theta \mid \theta^{(k)}) = \E_{\theta^{(k)}}\!\bigl[ \log p(Y,Z;\theta) \mid Y \bigr],
 \]
+où l'espérance est prise sous la loi $p(Z \mid Y;\theta^{(k)})$, avec $Z$ à valeurs dans $\mathcal{Z}_{\text{disc}}$.
 
-L’algorithme EM alterne alors deux étapes.
-
-\paragraph{Étape E.}
-
-On calcule les probabilités a posteriori
+\paragraph{Étape E (Espérance).}
+On calcule les poids a posteriori pour chaque $z \in \mathcal{Z}_{\text{disc}}$ :
 \[
-\tau_{i,z}^{(k)}
-=
-f_{\theta^{(k)}}(z\mid Y_i).
+\tau_{i,z}^{(k)} = f_{\theta^{(k)}}(z \mid Y_i)
+= \frac{ f_Z(z) \exp\!\left( -\frac{\|Y_i - A_z\theta^{(k)}\|^2}{2\sigma^2} \right) }{ \sum_{z'\in\mathcal{Z}_{\text{disc}}} f_Z(z') \exp\!\left( -\frac{\|Y_i - A_{z'}\theta^{(k)}\|^2}{2\sigma^2} \right) }.
 \]
+Ces poids vérifient $\sum_{z\in\mathcal{Z}_{\text{disc}}} \tau_{i,z}^{(k)} = 1$ pour tout $i$.
 
-Dans le cas discret,
+\paragraph{Étape M (Maximisation).}
+À une constante additive près indépendante de $\theta$,
 \[
-\tau_{i,z}^{(k)}
-=
-\frac{
-f_Z(z)
-\exp\left(
--\frac{\|Y_i-A_z\theta^{(k)}\|^2}{2\sigma^2}
-\right)
-}{
-\sum_{z'\in Z}
-f_Z(z')
-\exp\left(
--\frac{\|Y_i-A_{z'}\theta^{(k)}\|^2}{2\sigma^2}
-\right)
-}.
+Q(\theta \mid \theta^{(k)}) = -\frac{1}{2\sigma^2} \sum_{i=1}^n \sum_{z\in\mathcal{Z}_{\text{disc}}} \tau_{i,z}^{(k)} \|Y_i - A_z\theta\|^2.
 \]
-
-\paragraph{Étape M.}
-
-À constante additive près,
+Cette fonction est quadratique convexe en $\theta$. Calculons son gradient :
 \[
-Q(\theta\mid\theta^{(k)})
-=
--
-\frac{1}{2\sigma^2}
-\sum_{i=1}^n
-\sum_{z\in Z}
-\tau_{i,z}^{(k)}
-\|Y_i-A_z\theta\|^2.
+\nabla_\theta Q(\theta \mid \theta^{(k)}) = -\frac{1}{\sigma^2} \sum_{i=1}^n \sum_{z} \tau_{i,z}^{(k)} A_z^\top (Y_i - A_z\theta).
 \]
-
-Pour des poids $\tau_{i,z}^{(k)}$ fixés, la fonction
+En annulant le gradient, on obtient les équations normales :
 \[
-\theta
-\longmapsto
-\sum_{i=1}^n
-\sum_{z\in Z}
-\tau_{i,z}^{(k)}
-\|Y_i-A_z\theta\|^2
+\left( \sum_{i=1}^n \sum_{z\in\mathcal{Z}_{\text{disc}}} \tau_{i,z}^{(k)} A_z^\top A_z \right) \theta = \sum_{i=1}^n \sum_{z\in\mathcal{Z}_{\text{disc}}} \tau_{i,z}^{(k)} A_z^\top Y_i.
 \]
-est quadratique convexe en $\theta$.
-
-La M-step admet donc une solution unique dès que la matrice
+La matrice $M^{(k)} = \sum_{i,z} \tau_{i,z}^{(k)} A_z^\top A_z$ est symétrique semi-définie positive. On suppose qu'elle est inversible (ce qui est vérifié en pratique si les opérateurs $A_z$ couvrent suffisamment l'espace $E$ et si $n$ est assez grand). La mise à jour EM est alors
 \[
-\sum_{i=1}^n
-\sum_{z\in Z}
-\tau_{i,z}^{(k)}
-A_z^\top A_z
-\]
-est inversible.
-
-Maximiser $Q$ revient donc à résoudre un problème de moindres carrés pondérés.
-
-Les équations normales sont
-\[
-\left(
-\sum_{i=1}^n
-\sum_{z\in Z}
-\tau_{i,z}^{(k)}
-A_z^\top A_z
-\right)\theta
-=
-\sum_{i=1}^n
-\sum_{z\in Z}
-\tau_{i,z}^{(k)}
-A_z^\top Y_i.
-\]
-
-La mise à jour EM est donc
-\[
-\theta^{(k+1)}
-=
-\left(
-\sum_{i=1}^n
-\sum_{z\in Z}
-\tau_{i,z}^{(k)}
-A_z^\top A_z
-\right)^{-1}
-\left(
-\sum_{i=1}^n
-\sum_{z\in Z}
-\tau_{i,z}^{(k)}
-A_z^\top Y_i
-\right).
+\boxed{ \theta^{(k+1)} = \bigl(M^{(k)}\bigr)^{-1} \left( \sum_{i=1}^n \sum_{z\in\mathcal{Z}_{\text{disc}}} \tau_{i,z}^{(k)} A_z^\top Y_i \right) }.
 \]
 
 \subsubsection{Propriétés théoriques}
 
 \begin{proposition}[Dempster, Laird \& Rubin, 1977]
-L’algorithme EM augmente la log‑vraisemblance marginale à chaque itération :
+L'algorithme EM augmente la log‑vraisemblance marginale à chaque itération :
 \[
 \ell_n(\theta^{(k+1)}) \ge \ell_n(\theta^{(k)}).
 \]
 \end{proposition}
 
 \begin{proof}
-Soit $q$ une densité de probabilité arbitraire sur $\mathcal{Z}$ (par rapport à $\mu$), c’est‑à‑dire $\int_{\mathcal{Z}} q(z)\,d\mu(z)=1$. En multipliant l’intégrande par $q(z)/q(z)$ et en appliquant l’inégalité de Jensen (concavité de $\log$), on a
+Soit $q$ une densité de probabilité arbitraire sur $\mathcal{Z}_{\text{disc}}$ (par rapport à la mesure de comptage), c'est‑à‑dire $\sum_{z} q(z)=1$, $q(z)\ge 0$. En multipliant l'intégrande par $q(z)/q(z)$ et en appliquant l'inégalité de Jensen (concavité de $\log$), on a
 \[
-\log p(Y;\theta) = \log \int_{\mathcal{Z}} \frac{p(Y,Z;\theta)}{q(Z)}\, q(Z)\,d\mu(Z)
-\ge \int_{\mathcal{Z}} q(Z) \log\frac{p(Y,Z;\theta)}{q(Z)}\,d\mu(Z).
+\log p(Y;\theta) = \log \left( \sum_{z\in\mathcal{Z}_{\text{disc}}} \frac{p(Y,Z;\theta)}{q(z)} \, q(z) \right)
+\ge \sum_{z} q(z) \log\frac{p(Y,Z;\theta)}{q(z)}.
 \]
-Choisissons $q(Z) = p(Z\mid Y;\theta^{(k)})$. L’inégalité devient
+Choisissons $q(z) = p(z\mid Y;\theta^{(k)})$. L'inégalité devient
 \[
-\log p(Y;\theta) \ge \int p(Z\mid Y;\theta^{(k)}) \log p(Y,Z;\theta)\,d\mu(Z)
-- \int p(Z\mid Y;\theta^{(k)}) \log p(Z\mid Y;\theta^{(k)})\,d\mu(Z).
+\log p(Y;\theta) \ge \sum_{z} p(z\mid Y;\theta^{(k)}) \log p(Y,Z;\theta)
+- \sum_{z} p(z\mid Y;\theta^{(k)}) \log p(z\mid Y;\theta^{(k)}).
 \]
 Le second terme, noté $C(\theta^{(k)})$, ne dépend pas de $\theta$. Ainsi,
 \[
 \ell_n(\theta) \ge Q(\theta\mid\theta^{(k)}) + C(\theta^{(k)}).
 \]
-L’égalité a lieu pour $\theta = \theta^{(k)}$, car alors
+L'égalité a lieu pour $\theta = \theta^{(k)}$, car alors
 \[
-\frac{p(Y,Z;\theta^{(k)})}{p(Z\mid Y;\theta^{(k)})} = p(Y;\theta^{(k)})
+\frac{p(Y,Z;\theta^{(k)})}{p(z\mid Y;\theta^{(k)})} = p(Y;\theta^{(k)})
 \]
-ne dépend pas de $Z$, condition qui rend l’inégalité de Jensen une égalité.
+ne dépend pas de $z$, condition qui rend l'inégalité de Jensen une égalité.
 
 Appliquons ce résultat à $\theta = \theta^{(k+1)}$ et $\theta = \theta^{(k)}$ :
 \[
 \ell_n(\theta^{(k+1)}) \ge Q(\theta^{(k+1)}\mid\theta^{(k)}) + C(\theta^{(k)}), \qquad
 \ell_n(\theta^{(k)}) = Q(\theta^{(k)}\mid\theta^{(k)}) + C(\theta^{(k)}).
 \]
-Par définition de l’étape M, $Q(\theta^{(k+1)}\mid\theta^{(k)}) \ge Q(\theta^{(k)}\mid\theta^{(k)})$. En soustrayant, on obtient
+Par définition de l'étape M, $Q(\theta^{(k+1)}\mid\theta^{(k)}) \ge Q(\theta^{(k)}\mid\theta^{(k)})$. En soustrayant, on obtient
 \[
 \ell_n(\theta^{(k+1)}) - \ell_n(\theta^{(k)}) \ge Q(\theta^{(k+1)}\mid\theta^{(k)}) - Q(\theta^{(k)}\mid\theta^{(k)}) \ge 0.
 \]
 \end{proof}
 
-
 \begin{theorem}[Wu, 1983]
-Toute valeur d’adhérence de la suite
-\[
-(\theta^{(k)})_{k\geq0}
-\]
-est un point critique de la log-vraisemblance :
+Toute valeur d'adhérence de la suite $(\theta^{(k)})_{k\ge0}$ est un point critique de $\ell_n$ :
 \[
 \nabla\ell_n(\theta)=0.
 \]
 \end{theorem}
 
-Ce résultat montre que l’algorithme EM ne converge pas arbitrairement : toute limite éventuelle de la suite des itérés correspond à un point stationnaire de la log-vraisemblance marginale.
+Ainsi, l'algorithme EM converge (sous des conditions de régularité) vers un point stationnaire, mais la non‑convexité du problème n'assure pas l'obtention d'un maximum global.
 
-En revanche, la non-convexité du problème n’assure pas la convergence vers un maximum global.
-
+% ----------------------------------------------------------------------------
 \subsection{Comparaison des deux approches}
 \label{subsec:comparaison}
 
-La descente de gradient agit directement sur la log-vraisemblance marginale. Elle est simple à implémenter mais sensible au choix du pas et à la non-convexité du problème.
+La descente de gradient agit directement sur $\ell_n$ ; elle est simple à implémenter mais sensible au choix du pas et à la non‑convexité. Le coût d'une itération pour le Cas 1 discrétisé est $O(nMp)$ (amorti par FFT).
 
-L’algorithme EM exploite quant à lui la structure probabiliste du modèle à variables cachées. Chaque itération résout un problème quadratique analogue à celui du cas sans variables cachées, ce qui fournit généralement une meilleure stabilité numérique.
+L'algorithme EM exploite la structure probabiliste sous‑jacente. Chaque itération résout un problème quadratique (moindres carrés pondérés). La construction de la matrice $M^{(k)}$ coûte $O(nMdp)$ (produits $A_z\theta$ et $A_z^\top Y_i$), et sa résolution par inversion directe coûte $O(d^3)$. Bien que plus coûteux par itération, l'EM requiert souvent moins d'itérations et offre une meilleure stabilité numérique.
 
-Chaque itération de l’EM nécessite la résolution d’un système linéaire, ce qui peut être plus coûteux qu’une simple étape de gradient. Cependant, l’algorithme EM nécessite souvent moins d’itérations pour atteindre une solution satisfaisante.
-
-Dans nos expériences sur le Cas 1, l’algorithme EM s’est montré plus robuste et a conduit à des reconstructions plus précises en présence de bruit.
+Dans le cadre du Cas 1, des expériences numériques (non détaillées ici) montrent que l'EM est plus robuste au bruit et produit des reconstructions de meilleure qualité que la descente de gradient simple.
+%
 
 
 % ════════════════════════════════════════════════════════════════════════════
@@ -1011,10 +830,97 @@ Dans nos expériences sur le Cas 1, l’algorithme EM s’est montré plus robus
 % ════════════════════════════════════════════════════════════════════════════
 \newpage
 \section{Régularisation pour les problèmes inverses mal posés}
-\label{subsec:régularisation}
-% 
 
+Dans le modèle étudié, l'estimation de $\theta$ repose sur l'inversion de matrices de la forme
+\[
+M^{(k)} = \sum_{i=1}^n \sum_{z\in\mathcal{Z}_{\text{disc}}} \tau_{i,z}^{(k)} A_z^\top A_z,
+\]
+apparaissant dans l'étape M de l'algorithme EM. Ici, $\mathcal{Z}_{\text{disc}} = \{z_1,\dots,z_M\}$ est une discrétisation finie de l'espace latent (cf. Section~\ref{sec:optimisation}).
 
+Dans le Cas~1 (translations sur le tore), les opérateurs $A_z$ conservent globalement l'information du signal, et la diagonalisation de Fourier permet une inversion relativement stable.
+
+En revanche, dans le Cas~2, les opérateurs
+\[
+A_z = P \circ R_z
+\]
+sont des compositions de rotations et de projections. L'opérateur de projection
+\[
+P : L^2(B(0,1)) \to L^2([-1,1])
+\]
+réduit la dimension des données observées et entraîne une perte d'information intrinsèque.
+
+Certaines composantes de $\theta$ influencent alors très faiblement les observations, ce qui rend le problème inverse mal posé. En particulier, la matrice $M^{(k)}$ possède souvent de très petites valeurs propres, et son inversion amplifie fortement le bruit présent dans les données.
+
+Cette instabilité peut provoquer :
+\begin{itemize}
+\item une forte sensibilité au bruit ;
+\item des oscillations numériques ;
+\item une divergence ou une mauvaise convergence de l'algorithme EM.
+\end{itemize}
+
+Pour stabiliser le problème, on introduit une régularisation.
+
+\subsection{Vraisemblance pénalisée}
+
+On remplace la log-vraisemblance marginale par une version pénalisée :
+\[
+\ell_n^{\mathrm{reg}}(\theta) = \ell_n(\theta) - \lambda R(\theta),
+\]
+où :
+\begin{itemize}
+\item $\lambda > 0$ est un paramètre de régularisation ;
+\item $R(\theta)$ est un terme de pénalité favorisant des solutions plus régulières.
+\end{itemize}
+
+Dans le cadre de l'algorithme EM, la M-step devient
+\[
+\theta^{(k+1)} = \arg\max_{\theta\in E} \bigl( Q(\theta\mid\theta^{(k)}) - \lambda R(\theta) \bigr).
+\]
+
+\subsection{Régularisation de Tikhonov}
+
+Le choix le plus simple consiste à prendre
+\[
+R(\theta) = \frac12 \|\theta\|^2.
+\]
+Cette pénalité quadratique correspond à la régularisation de Tikhonov (ou ridge).
+
+La M-step régularisée devient alors
+\[
+\min_{\theta\in E} \frac{1}{2\sigma^2} \sum_{i=1}^n \sum_{z\in\mathcal{Z}_{\text{disc}}} \tau_{i,z}^{(k)} \|Y_i - A_z\theta\|^2 + \frac{\lambda}{2}\|\theta\|^2.
+\]
+
+En annulant le gradient, on obtient les équations normales régularisées :
+\[
+\left( \sum_{i=1}^n \sum_{z\in\mathcal{Z}_{\text{disc}}} \tau_{i,z}^{(k)} A_z^\top A_z + \lambda\sigma^2 I \right) \theta = \sum_{i=1}^n \sum_{z\in\mathcal{Z}_{\text{disc}}} \tau_{i,z}^{(k)} A_z^\top Y_i.
+\]
+
+La mise à jour EM devient donc
+\[
+\theta^{(k+1)} = \left( \sum_{i=1}^n \sum_{z\in\mathcal{Z}_{\text{disc}}} \tau_{i,z}^{(k)} A_z^\top A_z + \lambda\sigma^2 I \right)^{-1} \left( \sum_{i=1}^n \sum_{z\in\mathcal{Z}_{\text{disc}}} \tau_{i,z}^{(k)} A_z^\top Y_i \right).
+\]
+
+L'ajout du terme $\lambda\sigma^2 I$ améliore le conditionnement de la matrice à inverser et réduit l'amplification du bruit.
+
+\subsection{Interprétation spectrale}
+
+Soient $\mu_1 \ge \mu_2 \ge \dots \ge \mu_d > 0$ les valeurs propres de la matrice
+\[
+M^{(k)} = \sum_{i=1}^n \sum_{z\in\mathcal{Z}_{\text{disc}}} \tau_{i,z}^{(k)} A_z^\top A_z.
+\]
+
+Lorsque certaines valeurs propres sont très petites, les directions correspondantes de l'espace des paramètres sont très peu observées par les données. L'inversion de $M^{(k)}$ amplifie alors fortement le bruit dans ces directions.
+
+La régularisation remplace les valeurs propres $\mu_j$ par $\mu_j + \lambda\sigma^2$, ce qui évite les divisions par de très petites quantités et stabilise l'inversion.
+
+Cette stabilisation réduit la variance de l'estimateur, au prix d'un biais supplémentaire : c'est le compromis classique biais-variance des problèmes inverses statistiques.
+
+\subsection{Remarque pratique}
+
+En pratique, il peut être avantageux de restreindre l'espace des solutions à une famille paramétrique plus régulière, par exemple des mélanges de gaussiennes.
+
+Cette approche réduit le nombre effectif de paramètres et améliore la stabilité numérique de l'algorithme EM, notamment dans le Cas~2 où les projections entraînent une perte importante d'information.
+%
 
 
 % ════════════════════════════════════════════════════════════════════════════
