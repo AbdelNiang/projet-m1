@@ -661,47 +661,30 @@ Nous présentons ici deux stratégies d’optimisation : une approche directe fo
 
 \subsubsection{Gradient de la log-vraisemblance marginale}
 
-Sous des hypothèses de régularité permettant la dérivation sous le signe intégral, on obtient
-
+Sous des hypothèses de domination permettant la dérivation sous le signe intégral, on calcule le gradient de $\ell_n$. Pour une observation $Y_i$, posons
 \[
-\nabla \ell_n(\theta)
-=
-\frac{1}{\sigma^2}
-\sum_{i=1}^n
-\int_Z
-A_z^\top (Y_i-A_z\theta)
-\,f_\theta(z\mid Y_i)\,d\mu(z),
+p(Y_i;\theta) = \int_{\mathcal{Z}} \frac{1}{(2\pi\sigma^2)^{p/2}} \exp\!\left( -\frac{\|Y_i-A_z\theta\|^2}{2\sigma^2} \right) f_Z(z)\,d\mu(z).
 \]
-
-où
+Alors
 \[
-f_\theta(z\mid Y_i)
+\nabla_\theta \log p(Y_i;\theta) = \frac{\nabla_\theta p(Y_i;\theta)}{p(Y_i;\theta)}.
 \]
-désigne la densité a posteriori de $Z_i$ sachant $Y_i$, donnée par la formule de Bayes :
-
+En dérivant sous l’intégrale,
 \[
-f_\theta(z\mid Y_i)
-=
-\frac{
-f_Z(z)
-\exp\left(
--\frac{\|Y_i-A_z\theta\|^2}{2\sigma^2}
-\right)
-}{
-\int_Z
-f_Z(z')
-\exp\left(
--\frac{\|Y_i-A_{z'}\theta\|^2}{2\sigma^2}
-\right)
-d\mu(z')
-}.
+\nabla_\theta p(Y_i;\theta) = \int_{\mathcal{Z}} \frac{1}{(2\pi\sigma^2)^{p/2}} \exp\!\left( -\frac{\|Y_i-A_z\theta\|^2}{2\sigma^2} \right) \frac{A_z^\top (Y_i-A_z\theta)}{\sigma^2} f_Z(z)\,d\mu(z).
 \]
-
-Le gradient apparaît ainsi comme une moyenne pondérée des résidus
+Ainsi,
 \[
-Y_i-A_z\theta,
+\nabla_\theta \log p(Y_i;\theta) = \frac{1}{\sigma^2} \int_{\mathcal{Z}} A_z^\top (Y_i-A_z\theta) \, f_\theta(z\mid Y_i)\,d\mu(z),
 \]
-les poids étant donnés par les probabilités a posteriori des variables cachées.
+où la densité \textit{a posteriori} de $Z_i$ sachant $Y_i$ est donnée par la formule de Bayes :
+\[
+f_\theta(z\mid Y_i) = \frac{ f_Z(z) \exp\!\left( -\frac{\|Y_i-A_z\theta\|^2}{2\sigma^2} \right) }{ \int_{\mathcal{Z}} f_Z(z') \exp\!\left( -\frac{\|Y_i-A_{z'}\theta\|^2}{2\sigma^2} \right) d\mu(z') }.
+\]
+Finalement, le gradient de $\ell_n$ s’écrit
+\[
+\boxed{ \nabla \ell_n(\theta) = \frac{1}{\sigma^2} \sum_{i=1}^n \int_{\mathcal{Z}} A_z^\top (Y_i-A_z\theta) \, f_\theta(z\mid Y_i)\,d\mu(z) }.
+\]
 
 \subsubsection{Application au Cas 1}
 
@@ -940,16 +923,47 @@ A_z^\top Y_i
 \right).
 \]
 
-\paragraph{Propriétés théoriques.}
+\subsubsection{Propriétés théoriques}
 
-\begin{proposition}[Dempster, Laird et Rubin]
-L’algorithme EM augmente la log-vraisemblance marginale à chaque itération :
+\begin{proposition}[Dempster, Laird \& Rubin, 1977]
+L’algorithme EM augmente la log‑vraisemblance marginale à chaque itération :
 \[
-\ell_n(\theta^{(k+1)})
-\geq
-\ell_n(\theta^{(k)}).
+\ell_n(\theta^{(k+1)}) \ge \ell_n(\theta^{(k)}).
 \]
 \end{proposition}
+
+\begin{proof}
+Soit $q$ une densité de probabilité arbitraire sur $\mathcal{Z}$ (par rapport à $\mu$), c’est‑à‑dire $\int_{\mathcal{Z}} q(z)\,d\mu(z)=1$. En multipliant l’intégrande par $q(z)/q(z)$ et en appliquant l’inégalité de Jensen (concavité de $\log$), on a
+\[
+\log p(Y;\theta) = \log \int_{\mathcal{Z}} \frac{p(Y,Z;\theta)}{q(Z)}\, q(Z)\,d\mu(Z)
+\ge \int_{\mathcal{Z}} q(Z) \log\frac{p(Y,Z;\theta)}{q(Z)}\,d\mu(Z).
+\]
+Choisissons $q(Z) = p(Z\mid Y;\theta^{(k)})$. L’inégalité devient
+\[
+\log p(Y;\theta) \ge \int p(Z\mid Y;\theta^{(k)}) \log p(Y,Z;\theta)\,d\mu(Z)
+- \int p(Z\mid Y;\theta^{(k)}) \log p(Z\mid Y;\theta^{(k)})\,d\mu(Z).
+\]
+Le second terme, noté $C(\theta^{(k)})$, ne dépend pas de $\theta$. Ainsi,
+\[
+\ell_n(\theta) \ge Q(\theta\mid\theta^{(k)}) + C(\theta^{(k)}).
+\]
+L’égalité a lieu pour $\theta = \theta^{(k)}$, car alors
+\[
+\frac{p(Y,Z;\theta^{(k)})}{p(Z\mid Y;\theta^{(k)})} = p(Y;\theta^{(k)})
+\]
+ne dépend pas de $Z$, condition qui rend l’inégalité de Jensen une égalité.
+
+Appliquons ce résultat à $\theta = \theta^{(k+1)}$ et $\theta = \theta^{(k)}$ :
+\[
+\ell_n(\theta^{(k+1)}) \ge Q(\theta^{(k+1)}\mid\theta^{(k)}) + C(\theta^{(k)}), \qquad
+\ell_n(\theta^{(k)}) = Q(\theta^{(k)}\mid\theta^{(k)}) + C(\theta^{(k)}).
+\]
+Par définition de l’étape M, $Q(\theta^{(k+1)}\mid\theta^{(k)}) \ge Q(\theta^{(k)}\mid\theta^{(k)})$. En soustrayant, on obtient
+\[
+\ell_n(\theta^{(k+1)}) - \ell_n(\theta^{(k)}) \ge Q(\theta^{(k+1)}\mid\theta^{(k)}) - Q(\theta^{(k)}\mid\theta^{(k)}) \ge 0.
+\]
+\end{proof}
+
 
 \begin{theorem}[Wu, 1983]
 Toute valeur d’adhérence de la suite
